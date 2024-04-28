@@ -1,0 +1,16 @@
+{
+  "submission": {
+    "prefix": "conform_submission",
+    "body": [
+        "const submission = parseWithZod(await request.formData(), { schema$0 });",
+        "if (submission.status !== 'success')",
+        "return json(",
+        "{ result: submission.reply() },",
+        "{ status: submission.status === 'error' ? 400 : 200 },",
+        ");",
+        "",
+        "const input = submission.value"
+    ],
+    "description": "Code snippet for conform submission"
+  }
+}
