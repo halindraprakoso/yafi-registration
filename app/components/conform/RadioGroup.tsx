@@ -3,20 +3,30 @@ import {
 	unstable_useControl as useControl,
 	type FieldMetadata,
 } from "@conform-to/react";
-import { useRef, type ElementRef } from "react";
+import { useId, useRef, type ElementRef } from "react";
+import { Label } from "~/components/ui/label";
 
 export function RadioGroupConform({
 	meta,
 	items,
+	label,
+	className,
 }: {
 	meta: FieldMetadata<string>;
 	items: Array<{ value: string; label: string }>;
+	label?: string;
+	className?: string;
 }) {
 	const radioGroupRef = useRef<ElementRef<typeof RadioGroup>>(null);
 	const control = useControl(meta);
 
+	const fallbackId = useId();
+	const id = meta.id ?? fallbackId;
+
 	return (
-		<>
+		<div className={className}>
+			{label && <Label htmlFor={id}>{label}</Label>}
+
 			<input
 				ref={control.register}
 				name={meta.name}
@@ -46,6 +56,10 @@ export function RadioGroupConform({
 					);
 				})}
 			</RadioGroup>
-		</>
+
+			{meta.errors && (
+				<p className="text-sm text-red-500">{meta.errors.join(", ")}</p>
+			)}
+		</div>
 	);
 }

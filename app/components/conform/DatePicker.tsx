@@ -14,13 +14,24 @@ import {
 	unstable_useControl as useControl,
 	type FieldMetadata,
 } from "@conform-to/react";
+import { useId } from "react";
+import { Label } from "~/components/ui/label";
 
-export function DatePickerConform({ meta }: { meta: FieldMetadata<Date> }) {
+export function DatePickerConform({
+	meta,
+	label,
+	className,
+}: { meta: FieldMetadata<Date>; label?: string; className?: string }) {
 	const triggerRef = React.useRef<HTMLButtonElement>(null);
 	const control = useControl(meta);
 
+	const fallbackId = useId();
+	const id = meta.id ?? fallbackId;
+
 	return (
-		<div>
+		<div className={className}>
+			{label && <Label htmlFor={id}>{label}</Label>}
+
 			<input
 				className="sr-only"
 				aria-hidden
@@ -61,6 +72,10 @@ export function DatePickerConform({ meta }: { meta: FieldMetadata<Date> }) {
 					/>
 				</PopoverContent>
 			</Popover>
+
+			{meta.errors && (
+				<p className="text-sm text-red-500">{meta.errors.join(", ")}</p>
+			)}
 		</div>
 	);
 }

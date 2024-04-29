@@ -17,15 +17,17 @@ export const InputConform = ({
 	className?: string;
 } & ComponentProps<typeof Input>) => {
 	const fallbackId = useId();
-	const id = props.id ?? fallbackId;
+	const id = meta.id ?? props.id ?? fallbackId;
 
 	return (
 		<div className={cn("w-full", className)}>
 			{label && <Label htmlFor={id}>{label}</Label>}
+
 			<Input
 				{...getInputProps(meta, { type, ariaAttributes: true })}
 				{...props}
 			/>
+
 			{meta.errors && (
 				<p className="text-sm text-red-500">{meta.errors.join(", ")}</p>
 			)}
