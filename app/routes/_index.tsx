@@ -1,13 +1,40 @@
 import { getFormProps, useForm } from "@conform-to/react";
 import { parseWithZod } from "@conform-to/zod";
 import type { ActionFunctionArgs, MetaFunction } from "@remix-run/node";
-import { Form, json, redirect, useActionData } from "@remix-run/react";
-import { CloudIcon, LockIcon, ServerIcon } from "lucide-react";
+import {
+	Form,
+	json,
+	redirect,
+	useActionData,
+	useSubmit,
+} from "@remix-run/react";
+import { createStore } from "@xstate/store";
+import { useSelector } from "@xstate/store/react";
+import {
+	ArrowDownIcon,
+	CheckIcon,
+	CreditCardIcon,
+	InfoIcon,
+	SquarePenIcon,
+} from "lucide-react";
+import { AuthenticityTokenInput } from "remix-utils/csrf/react";
+import { HoneypotInputs } from "remix-utils/honeypot/react";
 import { z } from "zod";
 import { AddressSelect } from "~/components/conform/AddressSelect";
 import { InputConform } from "~/components/conform/Input";
 import { RadioGroupConform } from "~/components/conform/RadioGroup";
 import { SelectConform } from "~/components/conform/Select";
+import { TextareaConform } from "~/components/conform/Textarea";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "~/components/ui/alert-dialog";
 import { Button, buttonVariants } from "~/components/ui/button";
 import {
 	Card,
@@ -17,7 +44,30 @@ import {
 	CardTitle,
 } from "~/components/ui/card";
 import { Separator } from "~/components/ui/separator";
+import { csrf } from "~/lib/csrf.server";
+import { honeypot } from "~/lib/honeypot.server";
 import { zodEnum, zodText } from "~/lib/utils";
+
+const store = createStore(
+	{
+		showConfirmationDialog: false,
+		formData: null as FormData | null,
+	},
+	{
+		showConfirmationDialog: (_, event: { formData: FormData }) => {
+			return {
+				showConfirmationDialog: true,
+				formData: event.formData,
+			};
+		},
+		closeConfirmationDialog: () => {
+			return {
+				showConfirmationDialog: false,
+				formData: null,
+			};
+		},
+	},
+);
 
 export const meta: MetaFunction = () => {
 	return [
@@ -29,48 +79,32 @@ export const meta: MetaFunction = () => {
 	];
 };
 
-const schema = z.object({
-	valueCenter: zodEnum([
-		"b8f50eda-38dc-11ed-83d4-9f9eee0da2d5",
-		// "b8f51b1e-38dc-11ed-83d4-178e16605ac4",
-		"b8f521ea-38dc-11ed-83d4-e3681a2e816b",
-		"b8f5276c-38dc-11ed-83d4-df9730846b14",
-	]),
-	academicYear: zodEnum([
-		"111f75fa-5fb5-11ee-80e2-9b997668bcd3",
-		"b8f15c4a-38dc-11ed-83d4-4fde38efaa46",
-	]),
-	fullname: zodText,
-	nickname: zodText,
-	gender: zodEnum(["MALE", "FEMALE"]),
-	province: zodText,
-	city: zodText,
-	district: zodText,
-	village: zodText,
-});
-
 const features = [
 	{
-		name: "Push to deploy.",
-		description:
-			"Lorem ipsum, dolor sit amet consectetur adipisicing elit. Maiores impedit perferendis suscipit eaque, iste dolor cupiditate blanditiis ratione.",
-		icon: CloudIcon,
+		name: "Isi formulir pendaftaran.",
+		description: "Pastikan kebenaran data agar mempercepat proses validasi.",
+		icon: SquarePenIcon,
 	},
 	{
-		name: "SSL certificates.",
+		name: "Tunggu informasi dari kami.",
 		description:
-			"Anim aute id magna aliqua ad ad non deserunt sunt. Qui irure qui lorem cupidatat commodo.",
-		icon: LockIcon,
+			"Setelah selesai divalidasi, kami akan mengirimkan konfirmasi beserta link untuk pembayaran pendaftaran lewat e-mail. Staff kami juga akan menghubungi Bapak/Ibu jika diperlukan.",
+		icon: InfoIcon,
 	},
 	{
-		name: "Database backups.",
-		description:
-			"Ac tincidunt sapien vehicula erat auctor pellentesque rhoncus. Et magna sit morbi lobortis.",
-		icon: ServerIcon,
+		name: "Lakukan pembayaran invoice.",
+		description: "Pembayaran invoice sebagai bentuk konfirmasi pendaftaran.",
+		icon: CreditCardIcon,
+	},
+	{
+		name: "Terima konfirmasi pendaftaran.",
+		description: "Konfirmasi pendaftaran akan dikirim lewat e-mail.",
+		icon: CheckIcon,
 	},
 ];
 
 export default function Index() {
+	const randomNumber = Math.random();
 	return (
 		<div>
 			<header className="absolute inset-x-0 top-0 z-50">
@@ -84,7 +118,7 @@ export default function Index() {
 								<span className="sr-only">Your Company</span>
 								<img
 									alt="Your Company"
-									className="h-8 w-auto"
+									className="h-20 w-auto"
 									src="logo-both.png"
 								/>
 							</a>
@@ -109,23 +143,27 @@ export default function Index() {
 							<div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-xl">
 								<div className="hidden sm:mb-10 sm:flex">
 									<div className="relative rounded-full px-3 py-1 text-sm leading-6 text-gray-500 ring-1 ring-gray-900/10 hover:ring-gray-900/20">
-										Anim aute id magna aliqua ad ad non deserunt sunt
+										Dapatkan diskon early bird sampai dengan 30%
 									</div>
 								</div>
-								<h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-6xl">
-									Pendaftaran Raudhah & Insan Rabbany
-								</h1>
+								<div className="text-4xl font-bold tracking-tight text-gray-900 sm:text-6xl">
+									<p>Pendaftaran</p>
+									<p className="text-red-400 pl-10">Raudhah</p>
+									<p className="text-orange-400 pl-20">Insan Rabbany</p>
+								</div>
 								<p className="mt-6 text-lg leading-8 text-gray-600">
-									Anim aute id magna aliqua ad ad non deserunt sunt. Qui irure
-									qui lorem cupidatat commodo. Elit sunt amet fugiat veniam
-									occaecat fugiat aliqua.
+									Melalui halaman ini, Bapak/Ibu dapat mendaftarkan Ananda ke
+									sekolah kami dengan mudah dan cepat.
 								</p>
 								<div className="mt-10 flex items-center gap-x-6">
 									<a
 										href="#form-section"
-										className={buttonVariants({ variant: "default" })}
+										className={buttonVariants({
+											variant: "default",
+											className: "w-full",
+										})}
 									>
-										Daftar Sekarang
+										Daftar Sekarang <ArrowDownIcon className="size-5 ml-3" />
 									</a>
 								</div>
 							</div>
@@ -135,7 +173,15 @@ export default function Index() {
 				<div className="bg-gray-50 lg:absolute lg:inset-y-0 lg:right-0 lg:w-1/2">
 					<img
 						className="aspect-[3/2] object-cover lg:aspect-auto lg:h-full lg:w-full"
-						src="https://images.unsplash.com/photo-1521737711867-e3b97375f902?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1587&q=80"
+						src={
+							randomNumber < 0.25
+								? "hero-tk.webp"
+								: randomNumber < 0.5
+									? "hero-sd.webp"
+									: randomNumber < 0.75
+										? "hero-smp.png"
+										: "hero-sma.webp"
+						}
 						alt=""
 					/>
 				</div>
@@ -143,20 +189,20 @@ export default function Index() {
 
 			<div className="overflow-hidden bg-white py-24 sm:py-32">
 				<div className="mx-auto max-w-7xl md:px-6 lg:px-8">
-					<div className="grid grid-cols-1 gap-x-8 gap-y-16 sm:gap-y-20 lg:grid-cols-2 lg:items-start">
+					<div className="grid grid-cols-1 gap-x-8 gap-y-16 sm:gap-y-20 lg:grid-cols-1 lg:items-start">
 						<div className="px-6 md:px-0 lg:pr-4 lg:pt-4">
-							<div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-lg">
-								<h2 className="text-base font-semibold leading-7 text-indigo-600">
+							<div className="mx-auto lg:mx-0 ">
+								{/* <h2 className="text-base font-semibold leading-7 text-indigo-600">
 									Pendaftaran
-								</h2>
+								</h2> */}
 								<p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-									A better workflow
+									Langkah-langkah Proses Pendaftaran
 								</p>
-								<p className="mt-6 text-lg leading-8 text-gray-600">
+								{/* <p className="mt-6 text-lg leading-8 text-gray-600">
 									Lorem ipsum, dolor sit amet consectetur adipisicing elit.
 									Maiores impedit perferendis suscipit eaque, iste dolor
 									cupiditate blanditiis ratione.
-								</p>
+								</p> */}
 								<dl className="mt-10 max-w-xl space-y-8 text-base leading-7 text-gray-600 lg:max-w-none">
 									{features.map((feature) => (
 										<div key={feature.name} className="relative pl-9">
@@ -174,9 +220,13 @@ export default function Index() {
 							</div>
 						</div>
 						<div className="sm:px-6 lg:px-0">
-							<div className="relative isolate overflow-hidden bg-blue-500 px-6 py-8 sm:mx-auto sm:max-w-2xl sm:rounded-3xl sm:px-10  sm:pt-16 lg:mx-0 lg:max-w-none">
+							<div className="relative isolate overflow-hidden bg-blue-400 px-6 py-8 sm:mx-auto sm:max-w-2xl sm:rounded-3xl sm:px-10  sm:pt-16 lg:mx-0 lg:max-w-none">
 								<div
 									className="absolute -inset-y-px -left-3 -z-10 w-full origin-bottom-left skew-x-[-30deg] bg-gray-100 opacity-30 ring-1 ring-inset ring-white"
+									aria-hidden="true"
+								/>
+								<div
+									className="absolute -inset-y-px -right-96 -z-10 w-full origin-bottom-right skew-x-[-30deg] bg-gray-100 opacity-30 ring-1 ring-inset ring-white"
 									aria-hidden="true"
 								/>
 								<RegistrationForm />
@@ -194,6 +244,39 @@ export default function Index() {
 	);
 }
 
+const schema = z.object({
+	valueCenter: zodEnum([
+		"b8f50eda-38dc-11ed-83d4-9f9eee0da2d5",
+		// "b8f51b1e-38dc-11ed-83d4-178e16605ac4",
+		"b8f521ea-38dc-11ed-83d4-e3681a2e816b",
+		"b8f5276c-38dc-11ed-83d4-df9730846b14",
+	]),
+	academicYear: zodEnum([
+		"111f75fa-5fb5-11ee-80e2-9b997668bcd3",
+		"b8f15c4a-38dc-11ed-83d4-4fde38efaa46",
+	]),
+	fullname: zodText,
+	nickname: zodText,
+	gender: zodEnum(["MALE", "FEMALE"]),
+	NISN: zodText.optional(),
+	previousSchool: zodText.optional(),
+
+	province: zodText,
+	city: zodText,
+	district: zodText,
+	village: zodText,
+	street: zodText,
+	houseNumber: zodText,
+	addressDescription: zodText.optional(),
+
+	motherFullname: zodText,
+	motherPhone: zodText,
+	motherEmail: zodText.email(),
+	fatherFullname: zodText,
+	fatherPhone: zodText,
+	fatherEmail: zodText.email(),
+});
+
 function RegistrationForm() {
 	const actionData = useActionData<typeof action>();
 
@@ -205,14 +288,15 @@ function RegistrationForm() {
 			gender: "MALE",
 			province: "36",
 		},
-		onSubmit: (event) => {
+		onSubmit: (event, ctx) => {
 			event.preventDefault();
+			store.send({ type: "showConfirmationDialog", formData: ctx.formData });
 		},
 	});
 
 	return (
 		<div id="form-section" className="flex justify-center">
-			<Card className="max-w-xl w-full opacity-90">
+			<Card className="w-full opacity-90">
 				<CardHeader>
 					<CardTitle>Form Registrasi</CardTitle>
 					<CardDescription>
@@ -222,71 +306,166 @@ function RegistrationForm() {
 				</CardHeader>
 
 				<CardContent>
-					<Form method="POST" {...getFormProps(form)} className="space-y-5">
-						<SelectConform
-							meta={field.valueCenter}
-							items={[
-								{
-									name: "KB-TK Islam Raudhah",
-									value: "b8f50eda-38dc-11ed-83d4-9f9eee0da2d5",
-								},
-								{
-									name: "SD Islam Raudhah (Pendaftaran Ditutup)",
-									value: "b8f51b1e-38dc-11ed-83d4-178e16605ac4",
-								},
-								{
-									name: "SMP Insan Rabbany",
-									value: "b8f521ea-38dc-11ed-83d4-e3681a2e816b",
-								},
-								{
-									name: "SMA Insan Rabbany",
-									value: "b8f5276c-38dc-11ed-83d4-df9730846b14",
-								},
-							]}
-							placeholder="Pilih Sekolah"
-							label="Mendaftar ke"
-						/>
-						<SelectConform
-							meta={field.academicYear}
-							items={[
-								{
-									name: "2024/25",
-									value: "111f75fa-5fb5-11ee-80e2-9b997668bcd3",
-								},
-								{
-									name: "2023/24",
-									value: "b8f15c4a-38dc-11ed-83d4-4fde38efaa46",
-								},
-							]}
-							placeholder="Pilih Tahun Ajaran"
-							label="Tahun Ajaran"
-						/>
+					<Form method="POST" {...getFormProps(form)}>
+						<AuthenticityTokenInput />
+						<HoneypotInputs label="Please leave this field blank" />
 
-						<InputConform
-							meta={field.fullname}
-							type="text"
-							label="Nama Lengkap Siswa"
-						/>
-						<InputConform
-							meta={field.nickname}
-							type="text"
-							label="Nama Panggilan Siswa"
-						/>
-						<RadioGroupConform
-							meta={field.gender}
-							items={[
-								{ value: "MALE", label: "Laki-laki" },
-								{ value: "FEMALE", label: "Perempuan" },
-							]}
-						/>
+						<div className="md:flex gap-5 w-full mb-10">
+							<SelectConform
+								meta={field.valueCenter}
+								items={[
+									{
+										name: "KB-TK Islam Raudhah",
+										value: "b8f50eda-38dc-11ed-83d4-9f9eee0da2d5",
+									},
+									{
+										name: "SD Islam Raudhah (Pendaftaran Ditutup)",
+										value: "b8f51b1e-38dc-11ed-83d4-178e16605ac4",
+									},
+									{
+										name: "SMP Insan Rabbany",
+										value: "b8f521ea-38dc-11ed-83d4-e3681a2e816b",
+									},
+									{
+										name: "SMA Insan Rabbany",
+										value: "b8f5276c-38dc-11ed-83d4-df9730846b14",
+									},
+								]}
+								placeholder="Pilih Sekolah"
+								label="Mendaftar ke"
+							/>
+							<SelectConform
+								meta={field.academicYear}
+								items={[
+									{
+										name: "2024/25",
+										value: "111f75fa-5fb5-11ee-80e2-9b997668bcd3",
+									},
+									{
+										name: "2023/24",
+										value: "b8f15c4a-38dc-11ed-83d4-4fde38efaa46",
+									},
+								]}
+								placeholder="Pilih Tahun Ajaran"
+								label="Untuk Tahun Ajaran"
+							/>
+						</div>
+						<div className="md:flex gap-2 space-y-10 md:space-y-0">
+							<fieldset className="w-full space-y-3">
+								<h1 className="text-sm font-bold">Siswa</h1>
+								<Separator />
 
-						<Separator />
+								<InputConform
+									meta={field.fullname}
+									type="text"
+									label="Nama Lengkap Siswa"
+								/>
+								<InputConform
+									meta={field.nickname}
+									type="text"
+									label="Nama Panggilan Siswa"
+								/>
+								<RadioGroupConform
+									meta={field.gender}
+									items={[
+										{ value: "MALE", label: "Laki-laki" },
+										{ value: "FEMALE", label: "Perempuan" },
+									]}
+								/>
+								<InputConform meta={field.NISN} type="text" label="NISN" />
+								<InputConform
+									meta={field.previousSchool}
+									type="text"
+									label="Asal Sekolah (sertakan lokasi)"
+									inputProps={{
+										placeholder: "Cth. SDN 01 Ciputat",
+									}}
+								/>
+							</fieldset>
 
-						<AddressSelect kind="province" meta={field.province} />
-						<AddressSelect kind="city" meta={field.city} />
-						<AddressSelect kind="district" meta={field.district} />
-						<AddressSelect kind="village" meta={field.village} />
+							<Separator orientation="vertical" />
 
+							<fieldset className="w-full space-y-3">
+								<h1 className="text-sm font-bold">Alamat</h1>
+								<Separator />
+
+								<AddressSelect kind="province" meta={field.province} />
+								<AddressSelect kind="city" meta={field.city} />
+								<AddressSelect kind="district" meta={field.district} />
+								<AddressSelect kind="village" meta={field.village} />
+								<InputConform
+									meta={field.street}
+									type="text"
+									label="Nama Jalan"
+									inputProps={{
+										placeholder: "Cth. Jl. Raya Ciputat",
+									}}
+								/>
+								<InputConform
+									meta={field.houseNumber}
+									type="text"
+									label="Blok dan Nomor Rumah"
+									inputProps={{
+										placeholder: "Cth. Blok N1 no. 5",
+									}}
+								/>
+								<TextareaConform
+									meta={field.addressDescription}
+									label="Keterangan Alamat"
+								/>
+							</fieldset>
+
+							<Separator orientation="vertical" />
+
+							<fieldset className="w-full space-y-3">
+								<h1 className="text-sm font-bold">Orang Tua</h1>
+								<Separator />
+								<InputConform
+									meta={field.motherFullname}
+									type="text"
+									label="Nama Lengkap Ibu"
+								/>
+								<InputConform
+									meta={field.motherPhone}
+									type="text"
+									label="Nomor HP Ibu"
+									className="placeholder:text-xs"
+									inputProps={{
+										className: "placeholder:text-xs",
+										placeholder:
+											"Gunakan +62 sebagai pengganti 0. Cth. +62812...",
+									}}
+								/>
+								<InputConform
+									meta={field.motherEmail}
+									type="email"
+									label="Email Ibu"
+								/>
+
+								<Separator />
+
+								<InputConform
+									meta={field.fatherFullname}
+									type="text"
+									label="Nama Lengkap Ayah"
+								/>
+								<InputConform
+									meta={field.fatherPhone}
+									type="text"
+									label="Nomor HP Ayah"
+									inputProps={{
+										className: "placeholder:text-xs",
+										placeholder:
+											"Gunakan +62 sebagai pengganti 0. Cth. +62812...",
+									}}
+								/>
+								<InputConform
+									meta={field.fatherEmail}
+									type="email"
+									label="Email Ayah"
+								/>
+							</fieldset>
+						</div>
 						<div className="pt-10">
 							<Button type="submit" className="w-full">
 								Kirim
@@ -295,12 +474,60 @@ function RegistrationForm() {
 					</Form>
 				</CardContent>
 			</Card>
+
+			<ConfirmationDialog />
 		</div>
 	);
 }
 
+function ConfirmationDialog() {
+	const submit = useSubmit();
+
+	const showConfimationDialog = useSelector(
+		store,
+		(state) => state.context.showConfirmationDialog,
+	);
+	const formData = useSelector(store, (state) => state.context.formData);
+
+	function handleSubmit() {
+		if (formData) {
+			submit(formData, { method: "POST" });
+		}
+	}
+
+	return (
+		<AlertDialog
+			open={showConfimationDialog}
+			onOpenChange={(isOpen) => {
+				if (!isOpen) store.send({ type: "closeConfirmationDialog" });
+			}}
+		>
+			<AlertDialogContent>
+				<AlertDialogHeader>
+					<AlertDialogTitle>Konfirmasi Data</AlertDialogTitle>
+					<AlertDialogDescription>
+						This action cannot be undone. This will permanently delete your
+						account and remove your data from our servers.
+					</AlertDialogDescription>
+				</AlertDialogHeader>
+				<AlertDialogFooter>
+					<AlertDialogCancel>Batal</AlertDialogCancel>
+					<AlertDialogAction onClick={handleSubmit}>
+						Daftarkan
+					</AlertDialogAction>
+				</AlertDialogFooter>
+			</AlertDialogContent>
+		</AlertDialog>
+	);
+}
+
 export async function action({ request }: ActionFunctionArgs) {
-	const submission = parseWithZod(await request.formData(), { schema });
+	await csrf.validate(request);
+
+	const formData = await request.formData();
+	honeypot.check(formData);
+
+	const submission = parseWithZod(formData, { schema });
 	if (submission.status !== "success")
 		return json(
 			{ result: submission.reply() },
@@ -308,6 +535,7 @@ export async function action({ request }: ActionFunctionArgs) {
 		);
 
 	const input = submission.value;
+	console.log("🚀 ~ action ~ input:", input);
 
 	return redirect(".");
 }

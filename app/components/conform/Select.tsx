@@ -11,6 +11,7 @@ import {
 } from "@conform-to/react";
 import { useId, useRef, type ComponentProps, type ElementRef } from "react";
 import { Label } from "~/components/ui/label";
+import { cn } from "~/lib/utils";
 
 export const SelectConform = ({
 	meta,
@@ -33,7 +34,7 @@ export const SelectConform = ({
 	const id = meta.id ?? fallbackId;
 
 	return (
-		<div className={className}>
+		<div className={cn("w-full", className)}>
 			{label && <Label htmlFor={id}>{label}</Label>}
 
 			<select

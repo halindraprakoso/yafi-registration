@@ -9,15 +9,16 @@ export const InputConform = ({
 	type,
 	label,
 	className,
-	...props
+	inputProps,
 }: {
 	meta: FieldMetadata<string>;
 	type: Parameters<typeof getInputProps>[1]["type"];
 	label?: string;
 	className?: string;
-} & ComponentProps<typeof Input>) => {
+	inputProps?: ComponentProps<typeof Input>;
+}) => {
 	const fallbackId = useId();
-	const id = meta.id ?? props.id ?? fallbackId;
+	const id = meta.id ?? inputProps?.id ?? fallbackId;
 
 	return (
 		<div className={cn("w-full", className)}>
@@ -25,7 +26,11 @@ export const InputConform = ({
 
 			<Input
 				{...getInputProps(meta, { type, ariaAttributes: true })}
-				{...props}
+				{...inputProps}
+				className={cn(
+					"uppercase placeholder:normal-case",
+					inputProps?.className,
+				)}
 			/>
 
 			{meta.errors && (
