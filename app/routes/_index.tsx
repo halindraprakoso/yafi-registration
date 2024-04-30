@@ -3,6 +3,7 @@ import { getZodConstraint, parseWithZod } from "@conform-to/zod";
 import type { ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import {
 	Form,
+	Link,
 	json,
 	redirect,
 	useActionData,
@@ -11,6 +12,7 @@ import {
 } from "@remix-run/react";
 import { createStore } from "@xstate/store";
 import { useSelector } from "@xstate/store/react";
+import { createClient } from "edgedb";
 import geografis from "geografis";
 import {
 	ArrowDownIcon,
@@ -19,6 +21,7 @@ import {
 	InfoIcon,
 	SquarePenIcon,
 } from "lucide-react";
+import { insert_registration } from "queries";
 import { AuthenticityTokenInput } from "remix-utils/csrf/react";
 import { HoneypotInputs } from "remix-utils/honeypot/react";
 import { z } from "zod";
@@ -126,14 +129,14 @@ export default function Index() {
 							className="flex items-center justify-between lg:justify-start"
 							aria-label="Global"
 						>
-							<a href="https://raudhah.sch.id" className="-m-1.5 p-1.5">
+							<Link to="https://raudhah.sch.id" className="-m-1.5 p-1.5">
 								<span className="sr-only">Your Company</span>
 								<img
 									alt="Your Company"
 									className="h-20 w-auto"
 									src="logo-both.png"
 								/>
-							</a>
+							</Link>
 						</nav>
 					</div>
 				</div>
@@ -155,7 +158,7 @@ export default function Index() {
 							<div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-xl">
 								<div className="hidden sm:mb-10 sm:flex">
 									<div className="relative rounded-full px-3 py-1 text-sm leading-6 text-gray-500 ring-1 ring-gray-900/10 hover:ring-gray-900/20">
-										Dapatkan diskon early bird sampai dengan 30%
+										Dapatkan diskon early bird sampai dengan 30%*
 									</div>
 								</div>
 								<div className="text-4xl font-bold tracking-tight text-gray-900 sm:text-6xl">
@@ -168,16 +171,19 @@ export default function Index() {
 									sekolah kami dengan mudah dan cepat.
 								</p>
 								<div className="mt-10 flex items-center gap-x-6">
-									<a
-										href="#form-section"
+									<Link
+										to="#form-section"
 										className={buttonVariants({
 											variant: "default",
 											className: "w-full",
 										})}
 									>
 										Daftar Sekarang <ArrowDownIcon className="size-5 ml-3" />
-									</a>
+									</Link>
 								</div>
+								<p className="mt-6 text-xs text-gray-600">
+									* Syarat & Ketentuan Berlaku
+								</p>
 							</div>
 						</div>
 					</div>
@@ -291,7 +297,7 @@ const studentSchema = {
 	birthDate: zodDate,
 	NISN: zodText.optional(),
 	previousSchool: zodText.optional(),
-	admissionNote: zodText.optional(),
+	registrationNote: zodText.optional(),
 };
 
 const addressSchema = {
@@ -306,10 +312,18 @@ const addressSchema = {
 
 const guardianSchema = {
 	motherFullname: zodText,
-	motherPhone: zodText,
+	motherPhone: zodText
+		.transform((val) => val.replaceAll(/\s+/g, ""))
+		.refine((val) => val.startsWith("+"), {
+			message: "Gunakan kode negara. Cth. +62",
+		}),
 	motherEmail: zodText.email(),
 	fatherFullname: zodText,
-	fatherPhone: zodText,
+	fatherPhone: zodText
+		.transform((val) => val.replaceAll(/\s+/g, ""))
+		.refine((val) => val.startsWith("+"), {
+			message: "Gunakan kode negara. Cth. +62",
+		}),
 	fatherEmail: zodText.email(),
 };
 
@@ -391,6 +405,33 @@ const highschoolGrades = [
 	},
 ];
 
+const dictionary = {
+	valueCenter: "Mendaftar ke",
+	academicYear: "Untuk Tahun Ajaran",
+	grade: "Untuk Tingkat",
+	fullname: "Nama Lengkap Siswa",
+	nickname: "Nama Panggilan Siswa",
+	gender: "Jenis Kelamin",
+	birthPlace: "Tempat Lahir",
+	birthDate: "Tanggal Lahir",
+	NISN: "NISN",
+	previousSchool: "Asal Sekolah (sertakan lokasi)",
+	registrationNote: "Catatan",
+	province: "Provinsi",
+	city: "Kota/Kabupaten",
+	district: "Kecamatan",
+	village: "Kelurahan/Desa",
+	street: "Nama Jalan",
+	houseNumber: "Blok dan Nomor Rumah",
+	addressDescription: "Keterangan Alamat",
+	motherFullname: "Nama Lengkap Ibu",
+	motherPhone: "Nomor HP Ibu",
+	motherEmail: "Email Ibu",
+	fatherFullname: "Nama Lengkap Ayah",
+	fatherPhone: "Nomor HP Ayah",
+	fatherEmail: "Email Ayah",
+} as const;
+
 function RegistrationForm() {
 	const { provinces } = useLoaderData<typeof loader>();
 	const actionData = useActionData<typeof action>();
@@ -415,7 +456,7 @@ function RegistrationForm() {
 
 	return (
 		<div id="form-section" className="flex justify-center">
-			<Card className="w-full opacity-90">
+			<Card className="w-full opacity-95">
 				<CardHeader>
 					<CardTitle>Form Registrasi</CardTitle>
 					<CardDescription>
@@ -497,12 +538,12 @@ function RegistrationForm() {
 								<InputConform
 									meta={field.fullname}
 									type="text"
-									label="Nama Lengkap Siswa"
+									label={dictionary.fullname}
 								/>
 								<InputConform
 									meta={field.nickname}
 									type="text"
-									label="Nama Panggilan Siswa"
+									label={dictionary.nickname}
 								/>
 								<RadioGroupConform
 									meta={field.gender}
@@ -514,24 +555,24 @@ function RegistrationForm() {
 								<InputConform
 									meta={field.birthPlace}
 									type="text"
-									label="Tempat Lahir"
+									label={dictionary.birthPlace}
 								/>
 								<DatePickerConform
 									meta={field.birthDate}
-									label="Tanggal Lahir"
+									label={dictionary.birthDate}
 								/>
 								<InputConform meta={field.NISN} type="text" label="NISN" />
 								<InputConform
 									meta={field.previousSchool}
 									type="text"
-									label="Asal Sekolah (sertakan lokasi)"
+									label={dictionary.previousSchool}
 									inputProps={{
 										placeholder: "Cth. SDN 01 Ciputat",
 									}}
 								/>
 								<TextareaConform
-									meta={field.admissionNote}
-									label="Catatan"
+									meta={field.registrationNote}
+									label={dictionary.registrationNote}
 									placeholder="Catatan tambahan untuk pendaftaran, Misal prestasi, kebutuhan khusus, dll."
 								/>
 							</fieldset>
@@ -551,7 +592,7 @@ function RegistrationForm() {
 								<InputConform
 									meta={field.street}
 									type="text"
-									label="Nama Jalan"
+									label={dictionary.street}
 									inputProps={{
 										placeholder: "Cth. Jl. Raya Ciputat",
 									}}
@@ -559,14 +600,14 @@ function RegistrationForm() {
 								<InputConform
 									meta={field.houseNumber}
 									type="text"
-									label="Blok dan Nomor Rumah"
+									label={dictionary.houseNumber}
 									inputProps={{
 										placeholder: "Cth. Blok N1 no. 5",
 									}}
 								/>
 								<TextareaConform
 									meta={field.addressDescription}
-									label="Keterangan Alamat"
+									label={dictionary.addressDescription}
 								/>
 							</fieldset>
 
@@ -576,23 +617,23 @@ function RegistrationForm() {
 								<InputConform
 									meta={field.motherFullname}
 									type="text"
-									label="Nama Lengkap Ibu"
+									label={dictionary.motherFullname}
 								/>
 								<InputConform
 									meta={field.motherPhone}
 									type="text"
-									label="Nomor HP Ibu"
+									label={dictionary.motherPhone}
 									className="placeholder:text-xs"
 									inputProps={{
 										className: "placeholder:text-xs",
 										placeholder:
-											"Gunakan +62 sebagai pengganti 0. Cth. +62812...",
+											"Gunakan kode negara sebagai pengganti 0. Cth. +62812...",
 									}}
 								/>
 								<InputConform
 									meta={field.motherEmail}
 									type="email"
-									label="Email Ibu"
+									label={dictionary.motherEmail}
 								/>
 
 								<Separator />
@@ -600,22 +641,22 @@ function RegistrationForm() {
 								<InputConform
 									meta={field.fatherFullname}
 									type="text"
-									label="Nama Lengkap Ayah"
+									label={dictionary.fatherFullname}
 								/>
 								<InputConform
 									meta={field.fatherPhone}
 									type="text"
-									label="Nomor HP Ayah"
+									label={dictionary.fatherPhone}
 									inputProps={{
 										className: "placeholder:text-xs",
 										placeholder:
-											"Gunakan +62 sebagai pengganti 0. Cth. +62812...",
+											"Gunakan kode negara sebagai pengganti 0. Cth. +62812...",
 									}}
 								/>
 								<InputConform
 									meta={field.fatherEmail}
 									type="email"
-									label="Email Ayah"
+									label={dictionary.fatherEmail}
 								/>
 							</fieldset>
 						</div>
@@ -656,24 +697,14 @@ function ConfirmationDialog() {
 			}}
 		>
 			<AlertDialogContent>
-				<AlertDialogHeader>
+				<AlertDialogHeader className="w-max">
 					<AlertDialogTitle>Konfirmasi Data</AlertDialogTitle>
 					<AlertDialogDescription>
-						<div className="flex gap-5">
-							{Object.keys(studentSchema).map((key) => {
-								const value = formData?.get(key) as string;
-								return (
-									<div key={key} className="flex gap-2">
-										<div className="font-semibold">{key}</div>
-										<div>{value}</div>
-									</div>
-								);
-							})}
-						</div>
+						Apakah data yang Anda masukkan sudah benar?
 					</AlertDialogDescription>
 				</AlertDialogHeader>
 				<AlertDialogFooter>
-					<AlertDialogCancel>Batal</AlertDialogCancel>
+					<AlertDialogCancel>Periksa Kembali</AlertDialogCancel>
 					<AlertDialogAction onClick={handleSubmit}>
 						Daftarkan
 					</AlertDialogAction>
@@ -682,6 +713,8 @@ function ConfirmationDialog() {
 		</AlertDialog>
 	);
 }
+
+const client = createClient();
 
 export async function action({ request }: ActionFunctionArgs) {
 	await csrf.validate(request);
@@ -697,7 +730,36 @@ export async function action({ request }: ActionFunctionArgs) {
 		);
 
 	const input = submission.value;
-	console.log("🚀 ~ action ~ input:", input);
 
-	return redirect(".");
+	const village = geografis.getVillage(input.village);
+
+	await insert_registration(client, {
+		academicYearId: input.academicYear,
+		grade: Number(input.grade),
+		valueCenterId: input.valueCenter,
+		fullname: input.fullname,
+		nickname: input.nickname,
+		birthPlace: input.birthPlace,
+		birthDate: input.birthDate,
+		cityOrRegency: input.city,
+		province: input.province,
+		district: input.district,
+		village: input.village,
+		postalCode: village.postal.toString(),
+		street: input.street,
+		houseNumber: input.houseNumber,
+		addressDescription: input.addressDescription,
+		nisn: input.NISN,
+		previousSchool: input.previousSchool,
+		motherFullname: input.motherFullname,
+		motherPhone: input.motherPhone,
+		motherEmail: input.motherEmail,
+		fatherFullname: input.fatherFullname,
+		fatherPhone: input.fatherPhone,
+		fatherEmail: input.fatherEmail,
+		gender: input.gender,
+		registrationNote: input.registrationNote,
+	});
+
+	return redirect("/success");
 }
