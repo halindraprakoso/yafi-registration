@@ -14,6 +14,7 @@ import {
 	unstable_useControl as useControl,
 	type FieldMetadata,
 } from "@conform-to/react";
+import { id as Indonesian } from "date-fns/locale";
 import { useId } from "react";
 import { Label } from "~/components/ui/label";
 
@@ -29,7 +30,7 @@ export function DatePickerConform({
 	const id = meta.id ?? fallbackId;
 
 	return (
-		<div className={className}>
+		<div className={cn("w-full", className)}>
 			{label && <Label htmlFor={id}>{label}</Label>}
 
 			<input
@@ -51,21 +52,22 @@ export function DatePickerConform({
 						ref={triggerRef}
 						variant={"outline"}
 						className={cn(
-							"w-64 justify-start text-left font-normal focus:ring-2 focus:ring-stone-950 focus:ring-offset-2",
+							"w-full justify-start text-left font-normal focus:ring-2 focus:ring-stone-950 focus:ring-offset-2",
 							!control.value && "text-muted-foreground",
 						)}
 					>
 						<CalendarIcon className="mr-2 h-4 w-4" />
 						{control.value ? (
-							format(control.value, "PPP")
+							format(control.value, "dd MMMM yyyy", { locale: Indonesian })
 						) : (
-							<span>Pick a date</span>
+							<span>Pilih Tanggal</span>
 						)}
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent className="w-auto p-0">
 					<Calendar
 						mode="single"
+						locale={Indonesian}
 						selected={new Date(control.value ?? "")}
 						onSelect={(value) => control.change(value?.toISOString() ?? "")}
 						initialFocus

@@ -7,12 +7,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 	let options: { name: string; value: string }[] = [];
 
-	if (kind === "province") {
-		options = geografis
-			.getProvinces()
-			.map((x) => ({ name: x.province, value: x.code }));
-	}
-
 	if (kind === "city") {
 		const cities = geografis.getProvince(code ?? "11").cities;
 		options = cities.map((x) => ({ name: x.city, value: x.code }));

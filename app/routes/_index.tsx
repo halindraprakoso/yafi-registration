@@ -1,15 +1,17 @@
 import { getFormProps, useForm } from "@conform-to/react";
-import { parseWithZod } from "@conform-to/zod";
+import { getZodConstraint, parseWithZod } from "@conform-to/zod";
 import type { ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import {
 	Form,
 	json,
 	redirect,
 	useActionData,
+	useLoaderData,
 	useSubmit,
 } from "@remix-run/react";
 import { createStore } from "@xstate/store";
 import { useSelector } from "@xstate/store/react";
+import geografis from "geografis";
 import {
 	ArrowDownIcon,
 	CheckIcon,
@@ -21,6 +23,7 @@ import { AuthenticityTokenInput } from "remix-utils/csrf/react";
 import { HoneypotInputs } from "remix-utils/honeypot/react";
 import { z } from "zod";
 import { AddressSelect } from "~/components/conform/AddressSelect";
+import { DatePickerConform } from "~/components/conform/DatePicker";
 import { InputConform } from "~/components/conform/Input";
 import { RadioGroupConform } from "~/components/conform/RadioGroup";
 import { SelectConform } from "~/components/conform/Select";
@@ -46,7 +49,7 @@ import {
 import { Separator } from "~/components/ui/separator";
 import { csrf } from "~/lib/csrf.server";
 import { honeypot } from "~/lib/honeypot.server";
-import { zodEnum, zodText } from "~/lib/utils";
+import { zodDate, zodEnum, zodText } from "~/lib/utils";
 
 const store = createStore(
 	{
@@ -82,13 +85,14 @@ export const meta: MetaFunction = () => {
 const features = [
 	{
 		name: "Isi formulir pendaftaran.",
-		description: "Pastikan kebenaran data agar mempercepat proses validasi.",
+		description:
+			"Pastikan kebenaran data agar mempercepat proses validasi. Jika pendafaran ditutup, pendaftaran akan masuk ke waiting list untuk kami hubungi jika kapasitas memenuhi.",
 		icon: SquarePenIcon,
 	},
 	{
 		name: "Tunggu informasi dari kami.",
 		description:
-			"Setelah selesai divalidasi, kami akan mengirimkan konfirmasi beserta link untuk pembayaran pendaftaran lewat e-mail. Staff kami juga akan menghubungi Bapak/Ibu jika diperlukan.",
+			"Setelah selesai divalidasi, kami akan mengirimkan link untuk pembayaran pendaftaran lewat e-mail. Staff kami juga akan menghubungi Bapak/Ibu jika diperlukan.",
 		icon: InfoIcon,
 	},
 	{
@@ -103,8 +107,16 @@ const features = [
 	},
 ];
 
+export async function loader() {
+	const provinces = geografis.getProvinces();
+	return {
+		provinces: provinces.map((x) => ({ name: x.province, value: x.code })),
+		randomNumber: Math.random(),
+	};
+}
+
 export default function Index() {
-	const randomNumber = Math.random();
+	const { randomNumber } = useLoaderData<typeof loader>();
 	return (
 		<div>
 			<header className="absolute inset-x-0 top-0 z-50">
@@ -127,7 +139,7 @@ export default function Index() {
 				</div>
 			</header>
 
-			<div className="relative">
+			<div className="relative mt-0.5">
 				<div className="mx-auto max-w-7xl">
 					<div className="relative z-10 pt-14 lg:w-full lg:max-w-2xl">
 						<svg
@@ -220,7 +232,7 @@ export default function Index() {
 							</div>
 						</div>
 						<div className="sm:px-6 lg:px-0">
-							<div className="relative isolate overflow-hidden bg-blue-400 px-6 py-8 sm:mx-auto sm:max-w-2xl sm:rounded-3xl sm:px-10  sm:pt-16 lg:mx-0 lg:max-w-none">
+							<div className="relative isolate overflow-hidden bg-blue-400 px-2 py-8 sm:mx-auto sm:max-w-2xl sm:rounded-3xl sm:px-10  sm:pt-16 lg:mx-0 lg:max-w-none">
 								<div
 									className="absolute -inset-y-px -left-3 -z-10 w-full origin-bottom-left skew-x-[-30deg] bg-gray-100 opacity-30 ring-1 ring-inset ring-white"
 									aria-hidden="true"
@@ -244,10 +256,10 @@ export default function Index() {
 	);
 }
 
-const schema = z.object({
+const studentSchema = {
 	valueCenter: zodEnum([
 		"b8f50eda-38dc-11ed-83d4-9f9eee0da2d5",
-		// "b8f51b1e-38dc-11ed-83d4-178e16605ac4",
+		"b8f51b1e-38dc-11ed-83d4-178e16605ac4",
 		"b8f521ea-38dc-11ed-83d4-e3681a2e816b",
 		"b8f5276c-38dc-11ed-83d4-df9730846b14",
 	]),
@@ -255,12 +267,34 @@ const schema = z.object({
 		"111f75fa-5fb5-11ee-80e2-9b997668bcd3",
 		"b8f15c4a-38dc-11ed-83d4-4fde38efaa46",
 	]),
+	grade: zodEnum([
+		"-2",
+		"-1",
+		"0",
+		"1",
+		"2",
+		"3",
+		"4",
+		"5",
+		"6",
+		"7",
+		"8",
+		"9",
+		"10",
+		"11",
+		"12",
+	]),
 	fullname: zodText,
 	nickname: zodText,
 	gender: zodEnum(["MALE", "FEMALE"]),
+	birthPlace: zodText,
+	birthDate: zodDate,
 	NISN: zodText.optional(),
 	previousSchool: zodText.optional(),
+	admissionNote: zodText.optional(),
+};
 
+const addressSchema = {
 	province: zodText,
 	city: zodText,
 	district: zodText,
@@ -268,25 +302,110 @@ const schema = z.object({
 	street: zodText,
 	houseNumber: zodText,
 	addressDescription: zodText.optional(),
+};
 
+const guardianSchema = {
 	motherFullname: zodText,
 	motherPhone: zodText,
 	motherEmail: zodText.email(),
 	fatherFullname: zodText,
 	fatherPhone: zodText,
 	fatherEmail: zodText.email(),
+};
+
+const schema = z.object({
+	...studentSchema,
+	...addressSchema,
+	...guardianSchema,
 });
 
+const kindergartenGrades = [
+	{
+		name: "Playgroup",
+		value: "-2",
+	},
+	{
+		name: "TK A",
+		value: "-1",
+	},
+	{
+		name: "TK B",
+		value: "0",
+	},
+];
+
+const primaryGrades = [
+	{
+		name: "Kelas 1",
+		value: "1",
+	},
+	{
+		name: "Kelas 2",
+		value: "2",
+	},
+	{
+		name: "Kelas 3",
+		value: "3",
+	},
+	{
+		name: "Kelas 4",
+		value: "4",
+	},
+	{
+		name: "Kelas 5",
+		value: "5",
+	},
+	{
+		name: "Kelas 6",
+		value: "6",
+	},
+];
+
+const secondarySchoolGrades = [
+	{
+		name: "Kelas 7",
+		value: "7",
+	},
+	{
+		name: "Kelas 8",
+		value: "8",
+	},
+	{
+		name: "Kelas 9",
+		value: "9",
+	},
+];
+
+const highschoolGrades = [
+	{
+		name: "Kelas 10",
+		value: "10",
+	},
+	{
+		name: "Kelas 11",
+		value: "11",
+	},
+	{
+		name: "Kelas 12",
+		value: "12",
+	},
+];
+
 function RegistrationForm() {
+	const { provinces } = useLoaderData<typeof loader>();
 	const actionData = useActionData<typeof action>();
 
 	const [form, field] = useForm<z.infer<typeof schema>>({
 		id: "registration-form",
 		lastResult: actionData?.result,
+		constraint: getZodConstraint(schema),
 		onValidate: ({ formData }) => parseWithZod(formData, { schema }),
+		shouldValidate: "onBlur",
+		shouldRevalidate: "onInput",
 		defaultValue: {
 			gender: "MALE",
 			province: "36",
+			academicYear: "111f75fa-5fb5-11ee-80e2-9b997668bcd3",
 		},
 		onSubmit: (event, ctx) => {
 			event.preventDefault();
@@ -310,7 +429,7 @@ function RegistrationForm() {
 						<AuthenticityTokenInput />
 						<HoneypotInputs label="Please leave this field blank" />
 
-						<div className="md:flex gap-5 w-full mb-10">
+						<div className="lg:flex gap-5 w-full mb-10 space-y-5 lg:space-y-0">
 							<SelectConform
 								meta={field.valueCenter}
 								items={[
@@ -349,8 +468,28 @@ function RegistrationForm() {
 								placeholder="Pilih Tahun Ajaran"
 								label="Untuk Tahun Ajaran"
 							/>
+							<SelectConform
+								meta={field.grade}
+								items={[
+									...(field.valueCenter.value ===
+									"b8f50eda-38dc-11ed-83d4-9f9eee0da2d5"
+										? kindergartenGrades
+										: field.valueCenter.value ===
+												"b8f51b1e-38dc-11ed-83d4-178e16605ac4"
+											? primaryGrades
+											: field.valueCenter.value ===
+													"b8f521ea-38dc-11ed-83d4-e3681a2e816b"
+												? secondarySchoolGrades
+												: field.valueCenter.value ===
+														"b8f5276c-38dc-11ed-83d4-df9730846b14"
+													? highschoolGrades
+													: []),
+								]}
+								placeholder="Pilih Tingkat"
+								label="Untuk Tingkat"
+							/>
 						</div>
-						<div className="md:flex gap-2 space-y-10 md:space-y-0">
+						<div className="lg:flex gap-5 space-y-10 lg:space-y-0">
 							<fieldset className="w-full space-y-3">
 								<h1 className="text-sm font-bold">Siswa</h1>
 								<Separator />
@@ -372,6 +511,15 @@ function RegistrationForm() {
 										{ value: "FEMALE", label: "Perempuan" },
 									]}
 								/>
+								<InputConform
+									meta={field.birthPlace}
+									type="text"
+									label="Tempat Lahir"
+								/>
+								<DatePickerConform
+									meta={field.birthDate}
+									label="Tanggal Lahir"
+								/>
 								<InputConform meta={field.NISN} type="text" label="NISN" />
 								<InputConform
 									meta={field.previousSchool}
@@ -381,15 +529,22 @@ function RegistrationForm() {
 										placeholder: "Cth. SDN 01 Ciputat",
 									}}
 								/>
+								<TextareaConform
+									meta={field.admissionNote}
+									label="Catatan"
+									placeholder="Catatan tambahan untuk pendaftaran, Misal prestasi, kebutuhan khusus, dll."
+								/>
 							</fieldset>
-
-							<Separator orientation="vertical" />
 
 							<fieldset className="w-full space-y-3">
 								<h1 className="text-sm font-bold">Alamat</h1>
 								<Separator />
 
-								<AddressSelect kind="province" meta={field.province} />
+								<AddressSelect
+									kind="province"
+									meta={field.province}
+									provinces={provinces}
+								/>
 								<AddressSelect kind="city" meta={field.city} />
 								<AddressSelect kind="district" meta={field.district} />
 								<AddressSelect kind="village" meta={field.village} />
@@ -414,8 +569,6 @@ function RegistrationForm() {
 									label="Keterangan Alamat"
 								/>
 							</fieldset>
-
-							<Separator orientation="vertical" />
 
 							<fieldset className="w-full space-y-3">
 								<h1 className="text-sm font-bold">Orang Tua</h1>
@@ -506,8 +659,17 @@ function ConfirmationDialog() {
 				<AlertDialogHeader>
 					<AlertDialogTitle>Konfirmasi Data</AlertDialogTitle>
 					<AlertDialogDescription>
-						This action cannot be undone. This will permanently delete your
-						account and remove your data from our servers.
+						<div className="flex gap-5">
+							{Object.keys(studentSchema).map((key) => {
+								const value = formData?.get(key) as string;
+								return (
+									<div key={key} className="flex gap-2">
+										<div className="font-semibold">{key}</div>
+										<div>{value}</div>
+									</div>
+								);
+							})}
+						</div>
 					</AlertDialogDescription>
 				</AlertDialogHeader>
 				<AlertDialogFooter>

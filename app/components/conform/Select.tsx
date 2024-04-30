@@ -67,7 +67,9 @@ export const SelectConform = ({
 					}
 				}}
 			>
-				<SelectTrigger>
+				<SelectTrigger
+					className={cn(!control.value && "text-muted-foreground")}
+				>
 					<SelectValue placeholder={placeholder} />
 				</SelectTrigger>
 				<SelectContent>

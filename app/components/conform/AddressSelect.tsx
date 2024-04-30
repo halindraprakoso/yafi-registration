@@ -45,10 +45,11 @@ export const selectAddressStore = createStore(
 interface Props {
 	meta: FieldMetadata<string>;
 	kind: "province" | "city" | "district" | "village";
+	provinces?: Array<{ name: string; value: string }>;
 }
 export function AddressSelect({ kind, ...props }: Props) {
 	if (kind === "province") {
-		return <ProvinceSelector {...props} />;
+		return <ProvinceSelector {...props} provinces={props.provinces ?? []} />;
 	}
 	if (kind === "city") {
 		return <CitySelector {...props} />;
@@ -61,7 +62,13 @@ export function AddressSelect({ kind, ...props }: Props) {
 	}
 }
 
-function ProvinceSelector({ meta }: { meta: FieldMetadata<string> }) {
+function ProvinceSelector({
+	meta,
+	provinces,
+}: {
+	meta: FieldMetadata<string>;
+	provinces: Array<{ name: string; value: string }>;
+}) {
 	const fetcher = useFetcher<typeof loader>();
 
 	const selectedProvince = useSelector(
@@ -69,35 +76,13 @@ function ProvinceSelector({ meta }: { meta: FieldMetadata<string> }) {
 		(state) => state.context.selectedProvince,
 	);
 
-	useEffect(
-		() => {
-			fetcher.load("/resources/address-select?kind=province");
-		},
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-		[],
-	);
-
-	useEffect(() => {
-		if (meta.initialValue) {
-			const value = fetcher.data?.options.find(
-				(x) => x.name === meta.initialValue,
-			)?.value;
-
-			selectAddressStore.send({
-				type: "setSelectedProvince",
-				selectedProvince: value ?? "",
-			});
-		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [fetcher.data]);
-
 	return (
 		<div>
 			<SelectConform
 				meta={meta}
 				label="Provinsi"
 				placeholder="Pilih Provinsi"
-				items={fetcher.data?.options ?? []}
+				items={provinces}
 				value={selectedProvince}
 				onValueChange={(e) => {
 					selectAddressStore.send({
